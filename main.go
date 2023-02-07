@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 )
@@ -17,6 +19,8 @@ type Product struct {
 }
 
 var productList []Product
+
+/* cSpell:disable */
 
 func init() {
 	productsJSON := `[
@@ -57,10 +61,23 @@ func init() {
 			"productName": "flowers"
 		}
 	]`
+
+	/* cSpell:enable */
+
 	err := json.Unmarshal([]byte(productsJSON), &productList)
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func getNextID() int {
+	highestID := -1
+	for _, product := range productList {
+		if highestID < product.ProductID {
+			highestID = product.ProductID
+		}
+	}
+	return highestID + 1
 }
 
 func productsHandler(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +90,29 @@ func productsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(productsJson)
+
+	case http.MethodPost:
+		var newProduct Product
+		bodyBytes, err := ioutil.ReadAll(r.Body)
+
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		err = json.Unmarshal(bodyBytes, &newProduct)
+		if err != nil {
+			fmt.Println(err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if newProduct.ProductID != 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		newProduct.ProductID = getNextID()
+		productList = append(productList, newProduct)
+		w.WriteHeader(http.StatusCreated)
+		return
 	}
 }
 
